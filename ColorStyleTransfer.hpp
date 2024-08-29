@@ -18,12 +18,12 @@ void onChangeLevel(int, void*)
 	auto starttime = std::chrono::system_clock::now();
 	cv::Mat res = ShiftColor(src, pattern, level);
 	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - starttime).count();
-	std::cout << "ËùºÄÊ±¼äÎª£º" << diff << "ms" << std::endl;
+	std::cout << "æ‰€è€—æ—¶é—´ä¸ºï¼š" << diff << "ms" << std::endl;
 	cv::imshow(windowname1, res);
 	cv::imwrite("res.png", res);
 }
 
-// Ê¹ÓÃ¾ùÖµÓë·½²îÀ´Ç¨ÒÆÉ«²Ê·ç¸ñ
+// ä½¿ç”¨å‡å€¼ä¸æ–¹å·®æ¥è¿ç§»è‰²å½©é£æ ¼
 cv::Mat ShiftColor(cv::Mat src, cv::Mat pat, int n) {
 	cv::Mat labsrc;
 	cv::Mat labpat;
@@ -59,21 +59,21 @@ cv::Mat ShiftColor(cv::Mat src, cv::Mat pat, int n) {
 
 // --------------------------------------------
 // --------------------------------------------
-//»ùÓÚÖ±·½Í¼µÄÉ«²ÊÇ¨ÒÆ
+//åŸºäºç›´æ–¹å›¾çš„è‰²å½©è¿ç§»
 cv::Mat colorTransfer(cv::Mat sourceImage, cv::Mat patternImage) {
-    // ·ÖÀëÔ´Í¼ÏñºÍÄ¿±êÍ¼ÏñµÄÍ¨µÀ
+    // åˆ†ç¦»æºå›¾åƒå’Œç›®æ ‡å›¾åƒçš„é€šé“
     std::vector<cv::Mat> sourceChannels;
     cv::split(sourceImage, sourceChannels);
 
     std::vector<cv::Mat> patternChannels;
     cv::split(patternImage, patternChannels);
 
-    // ¶ÔÃ¿¸öÍ¨µÀ½øĞĞÖ±·½Í¼Æ¥Åä
+    // å¯¹æ¯ä¸ªé€šé“è¿›è¡Œç›´æ–¹å›¾åŒ¹é…
     for (int i = 0; i < 3; i++) {
         sourceChannels[i] = HistogramMatching(sourceChannels[i], patternChannels[i]);
     }
 
-    // ºÏ²¢Æ¥ÅäºóµÄÍ¨µÀ
+    // åˆå¹¶åŒ¹é…åçš„é€šé“
     cv::Mat transferredImage;
     cv::merge(sourceChannels, transferredImage);
     
@@ -85,7 +85,7 @@ cv::Mat colorTransfer(cv::Mat sourceImage, cv::Mat patternImage) {
 }
 
 Mat HistogramMatching(const Mat& source, const Mat& template_img) {
-    // ¼ÆËãÔ´Í¼ÏñºÍÄ£°åÍ¼ÏñµÄÖ±·½Í¼
+    // è®¡ç®—æºå›¾åƒå’Œæ¨¡æ¿å›¾åƒçš„ç›´æ–¹å›¾
     int histSize = 256;
     float range[] = { 0, 256 };
     const float* histRange = { range };
@@ -94,7 +94,7 @@ Mat HistogramMatching(const Mat& source, const Mat& template_img) {
     calcHist(&source, 1, 0, Mat(), src_hist, 1, &histSize, &histRange);
     calcHist(&template_img, 1, 0, Mat(), tmpl_hist, 1, &histSize, &histRange);
 
-    // ¼ÆËãÀÛ»ı·Ö²¼º¯Êı£¨CDF£©
+    // è®¡ç®—ç´¯ç§¯åˆ†å¸ƒå‡½æ•°ï¼ˆCDFï¼‰
     src_hist /= source.total();
     tmpl_hist /= template_img.total();
 
@@ -109,7 +109,7 @@ Mat HistogramMatching(const Mat& source, const Mat& template_img) {
         cdf_tmpl[i] = cdf_tmpl[i - 1] + tmpl_hist.at<float>(i);
     }
 
-    // ´´½¨Ó³Éä±í
+    // åˆ›å»ºæ˜ å°„è¡¨
     vector<int> lut(histSize, 0);
     int tmpl_idx = 0;
 
@@ -120,7 +120,7 @@ Mat HistogramMatching(const Mat& source, const Mat& template_img) {
         lut[src_idx] = tmpl_idx;
     }
 
-    // Ó¦ÓÃÓ³Éä±í
+    // åº”ç”¨æ˜ å°„è¡¨
     Mat matched = source.clone();
     for (int y = 0; y < source.rows; y++) {
         for (int x = 0; x < source.cols; x++) {
