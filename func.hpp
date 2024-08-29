@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp> 
-
+#include <omp.h> 
 #include <chrono>   //计算时间
 
 using namespace cv;
@@ -17,6 +17,12 @@ static int light = 100;
 static int sat = 100;
 static int def = 100;
 static int vividness = 100;
+static int degree = 0;
+static int lumdegree = 0;
+static int colordegree = 0;
+static int lumclear = 0;
+static int colorclear = 0;
+
 static int maxValue = 100;
 
 cv::Mat ColorTemperature(cv::Mat src, int n);
@@ -28,7 +34,9 @@ cv::Mat ChangeSaturation(cv::Mat src, int n);
 cv::Mat ChangeDefinition(cv::Mat src, int n);
 cv::Mat ChangeExposure(cv::Mat src, int n);
 cv::Mat ChangeVividness(cv::Mat src, int n);
+cv::Mat removeNoise(cv::Mat image);
 
+//-----------------回调函数--------------------------
 void onChangeTempera(int, void*)
 {
 	Mat dst = ColorTemperature(input, temperature - 100);
@@ -85,6 +93,12 @@ void onChangeVividness(int, void*) {
 	Mat dst = ChangeVividness(input, vividness - 100);
 	imshow(windowname, dst);
 	cv::imwrite("out1.jpg", dst);
+}
+
+void onRemoveNoise(int, void*) {
+	Mat dst = removeNoise(input);
+	imshow(windowname, dst);
+	cv::imwrite("processedImage.jpg", dst);
 }
 
 //--------------------------------------------------------------------------------
@@ -210,7 +224,7 @@ void GetRGBfromTemperature(int& r, int& g, int& b, int tmpKelvin) {
 	double tmpCalc;
 
 	// 确保温度在有效范围内
-	if (tmpKelvin < 1000) tmpKelvin = 1000;
+	if (tmpKelvin < 2000) tmpKelvin = 2000;
 	if (tmpKelvin > 40000) tmpKelvin = 40000;
 
 	// 将温度除以 100
@@ -348,7 +362,7 @@ cv::Mat ColorTemperature(cv::Mat src, int n)
 	
 	int newTemperature;  // 新温度值
 	if (n < 0) {
-		newTemperature = 6600 + n / 100.0 * 5600;
+		newTemperature = 6600 + n / 100.0 * 4600;
 	}
 	else {
 		newTemperature = 6600 + n / 100.0 * 33400;
@@ -375,7 +389,8 @@ cv::Mat ColorTemperature(cv::Mat src, int n)
 			r = color[2];
 
 			// 如果要保留亮度，计算初始亮度值
-			originalLuminance = GetLuminance(r, g, b);
+			if(preserveLuminance)
+				originalLuminance = GetLuminance(r, g, b);
 
 			// 颜色混合
 			r = BlendColors(r, tmpR, tempStrength);
@@ -387,9 +402,11 @@ cv::Mat ColorTemperature(cv::Mat src, int n)
 			r = min(max(r, 0), 255);
 
 			// 如果要保留亮度，重新计算颜色值
-			RGB2HSL(r, g, b, h, s, l);
-			HSL2RGB(h, s, originalLuminance, r, g, b);
-
+			if (preserveLuminance) {
+				RGB2HSL(r, g, b, h, s, l);
+				HSL2RGB(h, s, originalLuminance, r, g, b);
+			}
+			
 			// 赋值新颜色值
 			dst.at<Vec3b>(y, x) = Vec3b(b, g, r);
 		}
@@ -635,6 +652,15 @@ cv::Mat ChangeBright(cv::Mat src, int n) {
 	return dst;
 }
 
+// 调整对比度
+cv::Mat ChangeContrast(cv::Mat src, int n) {
+	float level = n / 100.0;
+	cv::Mat dst = src.clone();
+	dst.convertTo(dst, CV_64F, 1.0 / 255, 0);
+	cv::pow(dst, 1 + level, dst);
+	return dst;
+}
+
 //--------------------------------------------------------------------------------
 // 调整高光
 cv::Mat ChangeHighLight(cv::Mat src, int highlight)
@@ -801,4 +827,59 @@ cv::Mat ChangeSaturation(cv::Mat src, int saturation)
 		}
 	}
 	return result;
+}
+
+cv::Mat DrawColor() {
+	Mat dst;
+	dst.rows = 200;
+	dst.cols = 500;
+	int blue = 0, green = 0, red = 0;
+
+	// 调整各个颜色通道
+	
+	for (int y = 0; y < dst.rows; ++y) {
+		for (int x = 0; x < dst.cols; ++x) {
+			
+
+		}
+	}
+}
+
+// 双边滤波去除噪点
+cv::Mat removeNoise(cv::Mat image) {
+	cv::Mat dst;
+	auto starttime = chrono::system_clock::now();
+
+	// 转换为 Lab 颜色空间
+	cv::Mat labImage;
+	cv::cvtColor(image, labImage, cv::COLOR_BGR2Lab);
+
+	// 分离通道
+	std::vector<cv::Mat> channels;
+	cv::split(labImage, channels);
+
+	// 对各个通道进行滤波
+	cv::Mat filteredL;
+	cv::Mat filteredA;
+	cv::Mat filteredB;
+	
+	cv::bilateralFilter(channels[0], filteredL, 0, lumdegree / 3.0, 5 - lumclear / 20.0);
+	cv::bilateralFilter(channels[1], filteredA, 0, colordegree / 2.0, 8 - colorclear / 15.0);
+	cv::bilateralFilter(channels[2], filteredB, 0, colordegree / 2.0, 8 - colorclear / 15.0);
+
+	// 替换原始的通道
+	channels[0] = filteredL;
+	channels[1] = filteredA;
+	channels[2] = filteredB;
+
+	// 合并通道
+	cv::Mat filteredLab;
+	cv::merge(channels, filteredLab);
+
+	// 转换回 BGR 颜色空间
+	cv::cvtColor(filteredLab, dst, cv::COLOR_Lab2BGR);
+
+	auto diff = chrono::duration_cast<std::chrono::milliseconds>(chrono::system_clock::now() - starttime).count();
+	cout << "所耗时间为：" << diff << "ms" << endl;
+	return dst;
 }
